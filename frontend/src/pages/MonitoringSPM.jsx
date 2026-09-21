@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { PageHeader, Empty, Badge, BULAN } from "@/components/common";
+import { MonthYearPicker } from "@/components/MonthYearPicker";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, CartesianGrid, Legend } from "recharts";
 import { CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 
@@ -9,18 +10,19 @@ const now = new Date();
 export default function MonitoringSPM() {
   const [d, setD] = useState(null);
   const [programs, setPrograms] = useState([]);
-  const [bulan, setBulan] = useState(String(now.getMonth() + 1));
+  const [bulan, setBulan] = useState(now.getMonth() + 1);
   const [tahun, setTahun] = useState(now.getFullYear());
+  const [allMonths, setAllMonths] = useState(false);
   const [programId, setProgramId] = useState("");
 
   const load = () => {
     const params = { tahun };
-    if (bulan) params.bulan = bulan;
+    if (!allMonths) params.bulan = bulan;
     if (programId) params.program_id = programId;
     api.get("/spm/dashboard", { params }).then((r) => setD(r.data));
   };
   useEffect(() => { api.get("/programs").then((r) => setPrograms(r.data)); }, []);
-  useEffect(() => { load(); }, [bulan, tahun, programId]);
+  useEffect(() => { load(); }, [bulan, tahun, allMonths, programId]);
 
   if (!d) return <Empty text="Memuat..." />;
   const s = d.summary;
@@ -33,9 +35,9 @@ export default function MonitoringSPM() {
     <div className="space-y-6">
       <PageHeader title="Monitoring SPM" desc="Dashboard capaian Standar Pelayanan Minimal Puskesmas." />
 
-      <div className="flex flex-wrap gap-2">
-        <select data-testid="spm-bulan" value={bulan} onChange={(e) => setBulan(e.target.value)} className={inputCls}><option value="">Semua Bulan</option>{BULAN.slice(1).map((b, i) => <option key={i} value={i + 1}>{b}</option>)}</select>
-        <select data-testid="spm-tahun" value={tahun} onChange={(e) => setTahun(e.target.value)} className={inputCls}>{[now.getFullYear(), now.getFullYear() - 1].map((y) => <option key={y} value={y}>{y}</option>)}</select>
+      <div className="flex flex-wrap items-center gap-2">
+        <MonthYearPicker testid="spm-periode" bulan={allMonths ? "" : bulan} tahun={tahun} onChange={(b, y) => { setBulan(b); setTahun(y); setAllMonths(false); }} />
+        <button data-testid="spm-all-months" onClick={() => setAllMonths(!allMonths)} className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${allMonths ? "border-sky-500 bg-sky-500 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>Semua Bulan {tahun}</button>
         <select data-testid="spm-program" value={programId} onChange={(e) => setProgramId(e.target.value)} className={inputCls}><option value="">Semua Program</option>{programs.map((p) => <option key={p.id} value={p.id}>{p.nama_program}</option>)}</select>
       </div>
 

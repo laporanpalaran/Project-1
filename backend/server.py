@@ -18,6 +18,15 @@ import jwt
 import bcrypt
 import requests
 from datetime import datetime, timezone, timedelta
+import secrets
+from fastapi import BackgroundTasks
+from openpyxl import Workbook
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib import colors
+from reportlab.lib.units import mm
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
 
 # ----------------------------------------------------------------------------
 # Setup
@@ -842,29 +851,109 @@ async def update_settings(data: SettingsInput, request: Request, user: dict = De
 
 
 # ----------------------------------------------------------------------------
-# Export (CSV)
+# Export (CSV / Excel / PDF berkop resmi)
 # ----------------------------------------------------------------------------
+KOP = ["PEMERINTAH KOTA SAMARINDA", "DINAS KESEHATAN", "UPTD PUSKESMAS PALARAN",
+       "Jl. Puskesmas No. 1, Kec. Palaran, Kota Samarinda, Kalimantan Timur"]
+
+
+def _csv_bytes(headers, rows):
+    lines = [",".join(str(h) for h in headers)]
+    for r in rows:
+        lines.append(",".join('"' + str(c).replace('"', '""') + '"' for c in r))
+    return "\n".join(lines).encode("utf-8")
+
+
+def _xlsx_bytes(title, headers, rows):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Laporan"
+    ws.append([KOP[2]])
+    ws.append([title])
+    ws.append([f"Dicetak: {datetime.now(timezone.utc).strftime('%d-%m-%Y %H:%M UTC')}"])
+    ws.append([])
+    ws.append(list(headers))
+    for r in rows:
+        ws.append(list(r))
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _pdf_bytes(title, headers, rows):
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), topMargin=16 * mm, bottomMargin=14 * mm, leftMargin=12 * mm, rightMargin=12 * mm)
+    styles = getSampleStyleSheet()
+    kop_style = ParagraphStyle("kop", parent=styles["Normal"], alignment=TA_CENTER, fontSize=13, leading=15, fontName="Helvetica-Bold")
+    sub_style = ParagraphStyle("sub", parent=styles["Normal"], alignment=TA_CENTER, fontSize=8, textColor=colors.HexColor("#475569"))
+    title_style = ParagraphStyle("title", parent=styles["Normal"], alignment=TA_CENTER, fontSize=11, spaceBefore=8, spaceAfter=10, fontName="Helvetica-Bold")
+    elems = [Paragraph(KOP[0], kop_style), Paragraph(KOP[1], kop_style), Paragraph(KOP[2], kop_style),
+             Paragraph(KOP[3], sub_style), Spacer(1, 4), Paragraph("_" * 200, sub_style),
+             Paragraph(title, title_style)]
+    data = [list(headers)] + [[str(c) for c in r] for r in rows]
+    table = Table(data, repeatRows=1)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0284C7")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F1F5F9")]),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    elems.append(table)
+    elems.append(Spacer(1, 10))
+    elems.append(Paragraph(f"Dicetak otomatis oleh Sistem E-SPAK · {datetime.now(timezone.utc).strftime('%d-%m-%Y %H:%M UTC')}", sub_style))
+    doc.build(elems)
+    return buf.getvalue()
+
+
+def _export_response(fmt, name, title, headers, rows):
+    if fmt == "xlsx":
+        return Response(content=_xlsx_bytes(title, headers, rows),
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": f"attachment; filename={name}.xlsx"})
+    if fmt == "pdf":
+        return Response(content=_pdf_bytes(title, headers, rows), media_type="application/pdf",
+                        headers={"Content-Disposition": f"attachment; filename={name}.pdf"})
+    return Response(content=_csv_bytes(headers, rows), media_type="text/csv",
+                    headers={"Content-Disposition": f"attachment; filename={name}.csv"})
+
+
 @api_router.get("/export/employees")
-async def export_employees(user: dict = Depends(require_roles("admin", "kepala"))):
+async def export_employees(format: str = Query("csv"), user: dict = Depends(require_roles("admin", "kepala"))):
     settings = await get_settings()
     staff = await db.users.find({"role": {"$in": ["pegawai", "pj_program"]}}).to_list(1000)
-    rows = ["No,Nama,NIP,Jabatan,Unit,Total JPL,Total Sertifikat,Persen JPL,Status"]
+    headers = ["No", "Nama", "NIP", "Jabatan", "Unit", "Total JPL", "Total Sertifikat", "Persen JPL", "Status"]
+    rows = []
     for i, s in enumerate(staff, 1):
         st = await employee_stats(s, settings)
-        rows.append(f"{i},{st['nama']},{st['nip']},{st['jabatan']},{st['unit']},{st['total_jpl']},{st['total_sertifikat']},{st['persen_jpl']}%,{st['status']}")
-    csv = "\n".join(rows)
-    return Response(content=csv, media_type="text/csv", headers={"Content-Disposition": "attachment; filename=rekap_pegawai.csv"})
+        rows.append([i, st['nama'], st['nip'], st['jabatan'], st['unit'], st['total_jpl'], st['total_sertifikat'], f"{st['persen_jpl']}%", st['status']])
+    return _export_response(format, "rekap_jpl_pegawai", "REKAP JPL & KINERJA PEGAWAI", headers, rows)
+
+
+@api_router.get("/export/certificates")
+async def export_certificates(format: str = Query("csv"), user: dict = Depends(require_roles("admin", "kepala"))):
+    certs = await db.certificates.find().sort("created_at", -1).to_list(5000)
+    ids = list({c["employee_id"] for c in certs})
+    users = await db.users.find({"id": {"$in": ids}}).to_list(1000)
+    umap = {u["id"]: u for u in users}
+    headers = ["No", "Pegawai", "NIP", "Pelatihan", "Penyelenggara", "JPL", "Tanggal", "Status"]
+    rows = []
+    for i, c in enumerate(certs, 1):
+        emp = umap.get(c["employee_id"], {})
+        rows.append([i, emp.get("nama", "-"), emp.get("nip", "-"), c["nama_pelatihan"], c.get("penyelenggara", ""), c["jpl"], c.get("tanggal_pelatihan", ""), c["status"]])
+    return _export_response(format, "rekap_sertifikat", "REKAP SERTIFIKAT PELATIHAN", headers, rows)
 
 
 @api_router.get("/export/spm")
-async def export_spm(tahun: Optional[int] = None, user: dict = Depends(require_roles("admin", "kepala"))):
+async def export_spm(format: str = Query("csv"), tahun: Optional[int] = None, user: dict = Depends(require_roles("admin", "kepala"))):
     now = datetime.now(timezone.utc)
     reports = await list_reports(tahun=tahun or now.year, user=user)
-    rows = ["Program,Indikator,Bulan,Tahun,Numerator,Denominator,Capaian,Target,Status"]
-    for r in reports:
-        rows.append(f"{r['nama_program']},{r['nama_indikator']},{r['bulan']},{r['tahun']},{r['numerator']},{r['denominator']},{r['capaian']}%,{r['target']}%,{r['status']}")
-    csv = "\n".join(rows)
-    return Response(content=csv, media_type="text/csv", headers={"Content-Disposition": "attachment; filename=rekap_spm.csv"})
+    headers = ["Program", "Indikator", "Bulan", "Tahun", "Numerator", "Denominator", "Capaian", "Target", "Status"]
+    rows = [[r['nama_program'], r['nama_indikator'], r['bulan'], r['tahun'], r['numerator'], r['denominator'], f"{r['capaian']}%", f"{r['target']}%", r['status']] for r in reports]
+    return _export_response(format, "rekap_capaian_spm", "REKAP CAPAIAN SPM", headers, rows)
 
 
 # ----------------------------------------------------------------------------
@@ -944,6 +1033,56 @@ async def dataset_spm(format: Optional[str] = Query(None), tahun: Optional[int] 
     if format == "csv":
         return Response(content=_to_csv(rows), media_type="text/csv")
     return {"generated_at": now_iso(), "count": len(rows), "data": rows}
+
+
+# ----------------------------------------------------------------------------
+# Dataset sync (cron harian) — jaga snapshot Looker Studio selalu terbaru
+# ----------------------------------------------------------------------------
+WEBHOOK_CRON_SECRET = os.environ.get("WEBHOOK_CRON_SECRET", "")
+
+
+async def _compute_jpl_dataset():
+    settings = await get_settings()
+    staff = await db.users.find({"role": {"$in": ["pegawai", "pj_program"]}}).to_list(1000)
+    out = []
+    for s in staff:
+        st = await employee_stats(s, settings)
+        out.append({"nama": st["nama"], "nip": st["nip"], "unit": st["unit"], "total_jpl": st["total_jpl"],
+                    "total_sertifikat": st["total_sertifikat"], "persen_jpl": st["persen_jpl"], "status": st["status"]})
+    return out
+
+
+async def _compute_spm_dataset():
+    now = datetime.now(timezone.utc)
+    reports = await list_reports(tahun=now.year, user={"role": "admin"})
+    return [{"program": r["nama_program"], "indikator": r["nama_indikator"], "bulan": r["bulan"], "tahun": r["tahun"],
+             "capaian": r["capaian"], "target": r["target"], "status": r["status"]} for r in reports]
+
+
+async def run_dataset_sync():
+    jpl = await _compute_jpl_dataset()
+    spm = await _compute_spm_dataset()
+    ts = now_iso()
+    await db.dataset_snapshots.update_one({"id": "jpl"}, {"$set": {"data": jpl, "generated_at": ts, "count": len(jpl)}}, upsert=True)
+    await db.dataset_snapshots.update_one({"id": "spm"}, {"$set": {"data": spm, "generated_at": ts, "count": len(spm)}}, upsert=True)
+    logger.info(f"Dataset sync done: {len(jpl)} jpl rows, {len(spm)} spm rows")
+
+
+@api_router.post("/cron/sync-dataset")
+async def cron_sync_dataset(request: Request, background: BackgroundTasks):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    auth = request.headers.get("Authorization", "")
+    token = auth[7:] if auth.startswith("Bearer ") else ""
+    if not WEBHOOK_CRON_SECRET or not secrets.compare_digest(token, WEBHOOK_CRON_SECRET):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    background.add_task(run_dataset_sync)
+    return {"ok": True, "accepted": True}
+
+
+@api_router.get("/dataset/sync-status")
+async def dataset_sync_status(user: dict = Depends(get_current_user)):
+    snaps = await db.dataset_snapshots.find().to_list(10)
+    return {s["id"]: {"generated_at": s.get("generated_at"), "count": s.get("count", 0)} for s in snaps}
 
 
 # ----------------------------------------------------------------------------

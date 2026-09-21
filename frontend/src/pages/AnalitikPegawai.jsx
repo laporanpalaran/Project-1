@@ -1,12 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
+import { downloadChartPng } from "@/lib/chartExport";
 import { StatCard, PageHeader, Empty } from "@/components/common";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, Legend } from "recharts";
-import { TrendingUp, TrendingDown, Users, Target } from "lucide-react";
+import { TrendingUp, TrendingDown, Users, Target, Download } from "lucide-react";
 
 const shortName = (n) => n.split(",")[0].split(" ").slice(0, 2).join(" ");
 
+function DlButton({ onClick, testid }) {
+  return (
+    <button type="button" data-testid={testid} onClick={onClick} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50">
+      <Download className="h-3.5 w-3.5" /> Unduh PNG
+    </button>
+  );
+}
+
 export default function AnalitikPegawai() {
+  const topRef = useRef(null);
+  const bottomRef = useRef(null);
+  const unitRef = useRef(null);
   const [d, setD] = useState(null);
   useEffect(() => { api.get("/analytics/employees").then((r) => setD(r.data)); }, []);
   if (!d) return <Empty text="Memuat..." />;
@@ -28,8 +40,12 @@ export default function AnalitikPegawai() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-white p-6">
-          <h3 className="mb-4 flex items-center gap-2 font-heading font-semibold text-slate-800"><TrendingUp className="h-5 w-5 text-emerald-500" /> Top 10 JPL Tertinggi</h3>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="flex items-center gap-2 font-heading font-semibold text-slate-800"><TrendingUp className="h-5 w-5 text-emerald-500" /> Top 10 JPL Tertinggi</h3>
+            <DlButton testid="dl-chart-top" onClick={() => downloadChartPng(topRef.current, "top10-jpl-tertinggi.png")} />
+          </div>
           {top.length === 0 ? <Empty /> : (
+            <div ref={topRef}>
             <ResponsiveContainer width="100%" height={320}>
               <BarChart data={top} layout="vertical" margin={{ left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eef2f7" />
@@ -39,11 +55,16 @@ export default function AnalitikPegawai() {
                 <Bar dataKey="jpl" radius={[0, 6, 6, 0]}>{top.map((e, i) => <Cell key={i} fill={e.jpl >= target ? "#10b981" : "#0ea5e9"} />)}</Bar>
               </BarChart>
             </ResponsiveContainer>
+            </div>
           )}
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-6">
-          <h3 className="mb-4 flex items-center gap-2 font-heading font-semibold text-slate-800"><TrendingDown className="h-5 w-5 text-rose-500" /> 10 JPL Terendah</h3>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="flex items-center gap-2 font-heading font-semibold text-slate-800"><TrendingDown className="h-5 w-5 text-rose-500" /> 10 JPL Terendah</h3>
+            <DlButton testid="dl-chart-bottom" onClick={() => downloadChartPng(bottomRef.current, "10-jpl-terendah.png")} />
+          </div>
           {bottom.length === 0 ? <Empty /> : (
+            <div ref={bottomRef}>
             <ResponsiveContainer width="100%" height={320}>
               <BarChart data={bottom} layout="vertical" margin={{ left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eef2f7" />
@@ -53,13 +74,18 @@ export default function AnalitikPegawai() {
                 <Bar dataKey="jpl" radius={[0, 6, 6, 0]}>{bottom.map((e, i) => <Cell key={i} fill={e.jpl >= target ? "#10b981" : "#f43f5e"} />)}</Bar>
               </BarChart>
             </ResponsiveContainer>
+            </div>
           )}
         </div>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6">
-        <h3 className="mb-4 flex items-center gap-2 font-heading font-semibold text-slate-800"><Users className="h-5 w-5 text-sky-500" /> Perbandingan Antar Unit / Program</h3>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="flex items-center gap-2 font-heading font-semibold text-slate-800"><Users className="h-5 w-5 text-sky-500" /> Perbandingan Antar Unit / Program</h3>
+          <DlButton testid="dl-chart-unit" onClick={() => downloadChartPng(unitRef.current, "perbandingan-unit.png")} />
+        </div>
         {perUnit.length === 0 ? <Empty /> : (
+          <div ref={unitRef}>
           <ResponsiveContainer width="100%" height={320}>
             <BarChart data={perUnit} margin={{ bottom: 40 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f7" />
@@ -71,6 +97,7 @@ export default function AnalitikPegawai() {
               <Bar dataKey="rata_sertifikat" name="Rata-rata Sertifikat" fill="#0d9488" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+          </div>
         )}
       </div>
 

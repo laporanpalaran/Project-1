@@ -37,6 +37,12 @@ Web app responsif untuk Puskesmas Palaran untuk digitalisasi monitoring kinerja 
 - P2: Split server.py ke beberapa router; async storage (httpx); aggregation untuk hindari N+1.
 - P2: Integrasi Google Spreadsheet/Looker Studio connector nyata.
 
+## Update 2026-06 (fitur lanjutan #2)
+- **Laporan Resmi berkop**: export Excel (.xlsx via openpyxl) & PDF (reportlab, kop "PEMERINTAH KOTA SAMARINDA / DINAS KESEHATAN / UPTD PUSKESMAS PALARAN") + CSV untuk 3 laporan: Rekap JPL Pegawai, Rekap Sertifikat, Rekap Capaian SPM. Endpoint `GET /api/export/{employees|certificates|spm}?format=csv|xlsx|pdf`.
+- **Kalender Periode SPM**: komponen `MonthYearPicker` (Popover kalender bulan+tahun) menggantikan dropdown pada Input Data SPM & Monitoring SPM (plus toggle "Semua Bulan").
+- **Ekspor Grafik**: tombol "Unduh PNG" pada tiap grafik Analitik Pegawai (SVG→PNG via canvas, `lib/chartExport.js`).
+- **Sinkron Otomatis Dataset**: cron harian `.emergent/crons.yml` (18:00 UTC) memanggil `POST /api/cron/sync-dataset` (auth Bearer `WEBHOOK_CRON_SECRET`, ack cepat + BackgroundTask) → simpan snapshot ke `dataset_snapshots`. Status terakhir sinkron tampil di halaman Laporan via `GET /api/dataset/sync-status`.
+
 ## Next Tasks
 - Tambah laporan Excel/PDF berformat resmi.
 

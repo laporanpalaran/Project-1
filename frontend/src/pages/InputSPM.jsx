@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import api, { apiErr } from "@/lib/api";
 import { PageHeader, Empty, Badge, BULAN } from "@/components/common";
+import { MonthYearPicker } from "@/components/MonthYearPicker";
 import { Save, Calculator } from "lucide-react";
 import { toast } from "sonner";
 
@@ -45,8 +46,7 @@ export default function InputSPM() {
             </select>
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <div><label className="mb-1 block text-xs font-semibold text-slate-600">Bulan</label><select data-testid="report-bulan" value={form.bulan} onChange={(e) => setForm({ ...form, bulan: e.target.value })} className={inputCls}>{BULAN.slice(1).map((b, i) => <option key={i} value={i + 1}>{b}</option>)}</select></div>
-            <div><label className="mb-1 block text-xs font-semibold text-slate-600">Tahun</label><input data-testid="report-tahun" type="number" value={form.tahun} onChange={(e) => setForm({ ...form, tahun: e.target.value })} className={inputCls} /></div>
+            <div className="col-span-2 sm:col-span-2"><label className="mb-1 block text-xs font-semibold text-slate-600">Periode</label><MonthYearPicker testid="report-periode" bulan={form.bulan} tahun={form.tahun} onChange={(b, y) => setForm({ ...form, bulan: b, tahun: y })} className="w-full justify-start" /></div>
             <div><label className="mb-1 block text-xs font-semibold text-slate-600">Target (%)</label><input data-testid="report-target" type="number" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} className={inputCls} /></div>
           </div>
           <div className="grid grid-cols-2 gap-4">

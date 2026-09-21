@@ -1,0 +1,8 @@
+crons:
+  - name: sync-dataset
+    description: "Sinkron dataset JPL & SPM setiap hari 18:00 UTC agar dashboard Looker Studio selalu memakai data terbaru"
+    cron: "0 18 * * *"
+    endpoint: "{{BASE_URL}}/api/cron/sync-dataset"
+    method: POST
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    enabled: true
