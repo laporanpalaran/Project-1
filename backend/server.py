@@ -676,21 +676,49 @@ async def dashboard_stats(user: dict = Depends(get_current_user)):
 
 
 @api_router.get("/spm/dashboard")
-async def spm_dashboard(bulan: Optional[int] = None, tahun: Optional[int] = None, program_id: Optional[str] = None, user: dict = Depends(get_current_user)):
+async def spm_dashboard(bulan: Optional[int] = None, tahun: Optional[int] = None, program_id: Optional[str] = None,
+                        start_bulan: Optional[int] = None, start_tahun: Optional[int] = None,
+                        end_bulan: Optional[int] = None, end_tahun: Optional[int] = None,
+                        user: dict = Depends(get_current_user)):
     now = datetime.now(timezone.utc)
-    tahun = tahun or now.year
-    reports = await list_reports(bulan=bulan, tahun=tahun, program_id=program_id, user=user)
+    is_range = all([start_bulan, start_tahun, end_bulan, end_tahun])
+
+    if is_range:
+        s_idx = start_tahun * 12 + start_bulan
+        e_idx = end_tahun * 12 + end_bulan
+        if s_idx > e_idx:
+            s_idx, e_idx = e_idx, s_idx
+        all_reports = await list_reports(program_id=program_id, user=user)
+        inrange = [r for r in all_reports if s_idx <= (r["tahun"] * 12 + r["bulan"]) <= e_idx]
+        agg = {}
+        for r in inrange:
+            a = agg.setdefault(r["indicator_id"], {"num": 0, "den": 0, "target": r["target"],
+                                                    "nama_indikator": r["nama_indikator"], "nama_program": r["nama_program"],
+                                                    "program_id": r.get("program_id", ""), "satuan": r.get("satuan", "%")})
+            a["num"] += r["numerator"]
+            a["den"] += r["denominator"]
+            a["target"] = r["target"]
+        reports = []
+        for iid, a in agg.items():
+            cap = round(a["num"] / a["den"] * 100, 2) if a["den"] else 0
+            reports.append({"id": iid, "indicator_id": iid, "nama_indikator": a["nama_indikator"],
+                            "nama_program": a["nama_program"], "program_id": a["program_id"], "satuan": a["satuan"],
+                            "bulan": 0, "tahun": 0, "numerator": a["num"], "denominator": a["den"],
+                            "capaian": cap, "target": a["target"], "status": indicator_status(cap, a["target"])})
+        trend_src = inrange
+    else:
+        tahun = tahun or now.year
+        reports = await list_reports(bulan=bulan, tahun=tahun, program_id=program_id, user=user)
+        trend_src = await list_reports(tahun=tahun, program_id=program_id, user=user)
+
     hijau = sum(1 for r in reports if r["status"] == "hijau")
     kuning = sum(1 for r in reports if r["status"] == "kuning")
     merah = sum(1 for r in reports if r["status"] == "merah")
     total = len(reports)
-    # trend per month for the year
-    all_year = await list_reports(tahun=tahun, program_id=program_id, user=user)
     trend = {}
-    for r in all_year:
-        b = r["bulan"]
-        trend.setdefault(b, []).append(r["capaian"])
-    trend_list = [{"bulan": b, "rata_capaian": round(sum(v) / len(v), 1)} for b, v in sorted(trend.items())]
+    for r in trend_src:
+        trend.setdefault(r["tahun"] * 12 + r["bulan"], []).append(r["capaian"])
+    trend_list = [{"bulan": ((k - 1) % 12) + 1, "rata_capaian": round(sum(v) / len(v), 1)} for k, v in sorted(trend.items())]
     top_masalah = sorted([r for r in reports if r["status"] != "hijau"], key=lambda x: x["capaian"])[:5]
     return {
         "summary": {"total": total, "hijau": hijau, "kuning": kuning, "merah": merah,
@@ -698,6 +726,7 @@ async def spm_dashboard(bulan: Optional[int] = None, tahun: Optional[int] = None
         "reports": reports,
         "trend": trend_list,
         "top_masalah": top_masalah,
+        "is_range": is_range,
     }
 
 

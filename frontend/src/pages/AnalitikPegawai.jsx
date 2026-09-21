@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
-import { downloadChartPng } from "@/lib/chartExport";
+import { downloadChartPng, downloadChartsPng } from "@/lib/chartExport";
 import { StatCard, PageHeader, Empty } from "@/components/common";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, Legend } from "recharts";
 import { TrendingUp, TrendingDown, Users, Target, Download } from "lucide-react";
@@ -29,7 +29,11 @@ export default function AnalitikPegawai() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Analitik Pegawai" desc="Analisis distribusi JPL, ranking, dan perbandingan antar unit/program." />
+      <PageHeader title="Analitik Pegawai" desc="Analisis distribusi JPL, ranking, dan perbandingan antar unit/program.">
+        <button data-testid="dl-all-charts" onClick={() => downloadChartsPng([topRef.current, bottomRef.current, unitRef.current], "analitik-pegawai-semua-grafik.png")} className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-teal-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95">
+          <Download className="h-4 w-4" /> Unduh Semua Grafik
+        </button>
+      </PageHeader>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Rata-rata JPL" value={d.rata_jpl} icon={Target} tone="sky" />

@@ -43,8 +43,12 @@ Web app responsif untuk Puskesmas Palaran untuk digitalisasi monitoring kinerja 
 - **Ekspor Grafik**: tombol "Unduh PNG" pada tiap grafik Analitik Pegawai (SVG→PNG via canvas, `lib/chartExport.js`).
 - **Sinkron Otomatis Dataset**: cron harian `.emergent/crons.yml` (18:00 UTC) memanggil `POST /api/cron/sync-dataset` (auth Bearer `WEBHOOK_CRON_SECRET`, ack cepat + BackgroundTask) → simpan snapshot ke `dataset_snapshots`. Status terakhir sinkron tampil di halaman Laporan via `GET /api/dataset/sync-status`.
 
+## Update 2026-06 (fitur lanjutan #3)
+- **Rentang Periode Monitoring SPM**: toggle "Per Bulan" vs "Rentang Periode". Mode rentang memakai 2 `MonthYearPicker` (Dari s/d Sampai) dan menampilkan akumulasi capaian = Σnumerator ÷ Σdenominator sepanjang rentang (kolom periode = "Akumulasi"). Backend `GET /api/spm/dashboard?start_bulan&start_tahun&end_bulan&end_tahun` (verified 84% = 420/500).
+- **Unduh Semua Grafik**: tombol di Analitik Pegawai menggabungkan ketiga grafik (Top/terendah JPL + perbandingan unit) menjadi satu berkas PNG (`downloadChartsPng`, stacking canvas).
+
 ## Next Tasks
-- Tambah laporan Excel/PDF berformat resmi.
+- Tambah blok tanda tangan/QR pada PDF resmi.
 
 ## Update 2026-06 (fitur lanjutan)
 - **Analitik Pegawai** (`/analitik-pegawai`, admin & kepala): grafik Top 10 & 10 terendah JPL, rata-rata/median, perbandingan antar unit/program (bar ganda) + tabel per-unit. Endpoint `GET /api/analytics/employees`.

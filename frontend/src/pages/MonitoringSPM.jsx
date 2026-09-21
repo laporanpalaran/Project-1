@@ -14,15 +14,26 @@ export default function MonitoringSPM() {
   const [tahun, setTahun] = useState(now.getFullYear());
   const [allMonths, setAllMonths] = useState(false);
   const [programId, setProgramId] = useState("");
+  const [mode, setMode] = useState("single");
+  const d3 = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+  const [rb, setRb] = useState(d3.getMonth() + 1);
+  const [ry, setRy] = useState(d3.getFullYear());
+  const [eb, setEb] = useState(now.getMonth() + 1);
+  const [ey, setEy] = useState(now.getFullYear());
 
   const load = () => {
-    const params = { tahun };
-    if (!allMonths) params.bulan = bulan;
+    const params = {};
+    if (mode === "range") {
+      params.start_bulan = rb; params.start_tahun = ry; params.end_bulan = eb; params.end_tahun = ey;
+    } else {
+      params.tahun = tahun;
+      if (!allMonths) params.bulan = bulan;
+    }
     if (programId) params.program_id = programId;
     api.get("/spm/dashboard", { params }).then((r) => setD(r.data));
   };
   useEffect(() => { api.get("/programs").then((r) => setPrograms(r.data)); }, []);
-  useEffect(() => { load(); }, [bulan, tahun, allMonths, programId]);
+  useEffect(() => { load(); }, [mode, bulan, tahun, allMonths, programId, rb, ry, eb, ey]);
 
   if (!d) return <Empty text="Memuat..." />;
   const s = d.summary;
@@ -35,10 +46,28 @@ export default function MonitoringSPM() {
     <div className="space-y-6">
       <PageHeader title="Monitoring SPM" desc="Dashboard capaian Standar Pelayanan Minimal Puskesmas." />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <MonthYearPicker testid="spm-periode" bulan={allMonths ? "" : bulan} tahun={tahun} onChange={(b, y) => { setBulan(b); setTahun(y); setAllMonths(false); }} />
-        <button data-testid="spm-all-months" onClick={() => setAllMonths(!allMonths)} className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${allMonths ? "border-sky-500 bg-sky-500 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>Semua Bulan {tahun}</button>
-        <select data-testid="spm-program" value={programId} onChange={(e) => setProgramId(e.target.value)} className={inputCls}><option value="">Semua Program</option>{programs.map((p) => <option key={p.id} value={p.id}>{p.nama_program}</option>)}</select>
+      <div className="space-y-3">
+        <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+          <button data-testid="spm-mode-single" onClick={() => setMode("single")} className={`rounded-lg px-4 py-1.5 text-sm font-medium transition ${mode === "single" ? "bg-sky-500 text-white shadow" : "text-slate-600"}`}>Per Bulan</button>
+          <button data-testid="spm-mode-range" onClick={() => setMode("range")} className={`rounded-lg px-4 py-1.5 text-sm font-medium transition ${mode === "range" ? "bg-sky-500 text-white shadow" : "text-slate-600"}`}>Rentang Periode</button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {mode === "single" ? (
+            <>
+              <MonthYearPicker testid="spm-periode" bulan={allMonths ? "" : bulan} tahun={tahun} onChange={(b, y) => { setBulan(b); setTahun(y); setAllMonths(false); }} />
+              <button data-testid="spm-all-months" onClick={() => setAllMonths(!allMonths)} className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${allMonths ? "border-sky-500 bg-sky-500 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>Semua Bulan {tahun}</button>
+            </>
+          ) : (
+            <>
+              <span className="text-sm font-medium text-slate-500">Dari</span>
+              <MonthYearPicker testid="spm-range-start" bulan={rb} tahun={ry} onChange={(b, y) => { setRb(b); setRy(y); }} />
+              <span className="text-sm font-medium text-slate-500">s/d</span>
+              <MonthYearPicker testid="spm-range-end" bulan={eb} tahun={ey} onChange={(b, y) => { setEb(b); setEy(y); }} />
+            </>
+          )}
+          <select data-testid="spm-program" value={programId} onChange={(e) => setProgramId(e.target.value)} className={inputCls}><option value="">Semua Program</option>{programs.map((p) => <option key={p.id} value={p.id}>{p.nama_program}</option>)}</select>
+        </div>
+        {mode === "range" && <p className="text-xs text-slate-400">Menampilkan akumulasi capaian: total numerator ÷ total denominator sepanjang rentang periode.</p>}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-4">
@@ -97,7 +126,7 @@ export default function MonitoringSPM() {
                 <tr key={r.id} className="hover:bg-slate-50/60">
                   <td className="px-4 py-3 text-slate-500">{r.nama_program}</td>
                   <td className="px-4 py-3 font-medium text-slate-800">{r.nama_indikator}</td>
-                  <td className="px-4 py-3 text-slate-500">{BULAN[r.bulan]} {r.tahun}</td>
+                  <td className="px-4 py-3 text-slate-500">{r.bulan ? `${BULAN[r.bulan]} ${r.tahun}` : "Akumulasi"}</td>
                   <td className="px-4 py-3 font-bold text-slate-800">{r.capaian}%</td>
                   <td className="px-4 py-3 text-slate-500">{r.target}%</td>
                   <td className="px-4 py-3"><Badge type="spm" value={r.status} /></td>
