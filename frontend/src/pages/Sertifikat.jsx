@@ -7,13 +7,16 @@ import { DatePicker } from "@/components/DatePicker";
 import { toast } from "sonner";
 
 const JENIS = ["Teknis", "Fungsional", "Manajerial", "Seminar", "Workshop", "Soft Skill", "Lainnya"];
+const PERIODE_START = 2026;
+const PERIODE = Array.from({ length: 6 }, (_, i) => PERIODE_START + i);
+const DEFAULT_TAHUN = Math.max(PERIODE_START, new Date().getFullYear());
 
 export default function Sertifikat() {
   const [certs, setCerts] = useState([]);
   const [stats, setStats] = useState(null);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ nama_pelatihan: "", jenis_pelatihan: "Teknis", penyelenggara: "", nomor_sertifikat: "", tanggal_pelatihan: "", jpl: "", keterangan: "" });
+  const [form, setForm] = useState({ nama_pelatihan: "", jenis_pelatihan: "Teknis", penyelenggara: "", nomor_sertifikat: "", tanggal_pelatihan: "", tahun: DEFAULT_TAHUN, jpl: "", keterangan: "" });
   const [file, setFile] = useState(null);
 
   const load = () => {
@@ -43,7 +46,7 @@ export default function Sertifikat() {
       await api.post("/certificates", fd, { headers: { "Content-Type": "multipart/form-data" } });
       toast.success("Sertifikat berhasil diunggah. Status: Menunggu Verifikasi.");
       setOpen(false);
-      setForm({ nama_pelatihan: "", jenis_pelatihan: "Teknis", penyelenggara: "", nomor_sertifikat: "", tanggal_pelatihan: "", jpl: "", keterangan: "" });
+      setForm({ nama_pelatihan: "", jenis_pelatihan: "Teknis", penyelenggara: "", nomor_sertifikat: "", tanggal_pelatihan: "", tahun: DEFAULT_TAHUN, jpl: "", keterangan: "" });
       setFile(null);
       load();
     } catch (err) { toast.error(apiErr(err)); } finally { setSaving(false); }
@@ -76,12 +79,12 @@ export default function Sertifikat() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-4 py-3">Pelatihan</th><th className="px-4 py-3">JPL</th><th className="px-4 py-3">Tanggal</th>
+                <th className="px-4 py-3">Pelatihan</th><th className="px-4 py-3">JPL</th><th className="px-4 py-3">Tahun</th><th className="px-4 py-3">Tanggal</th>
                 <th className="px-4 py-3">File</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100" data-testid="cert-table">
-              {certs.length === 0 && <tr><td colSpan={6} className="p-8"><Empty text="Belum ada sertifikat diunggah" /></td></tr>}
+              {certs.length === 0 && <tr><td colSpan={7} className="p-8"><Empty text="Belum ada sertifikat diunggah" /></td></tr>}
               {certs.map((c) => (
                 <tr key={c.id} className="hover:bg-slate-50/60">
                   <td className="px-4 py-3">
@@ -92,6 +95,7 @@ export default function Sertifikat() {
                     )}
                   </td>
                   <td className="px-4 py-3 font-semibold text-slate-700">{c.jpl}</td>
+                  <td className="px-4 py-3 text-slate-600">{c.tahun || "-"}</td>
                   <td className="px-4 py-3 text-slate-500">{c.tanggal_pelatihan || "-"}</td>
                   <td className="px-4 py-3">
                     {c.storage_path ? (
@@ -122,9 +126,10 @@ export default function Sertifikat() {
             </div>
             <Field label="Penyelenggara"><input data-testid="f-penyelenggara" value={form.penyelenggara} onChange={(e) => setForm({ ...form, penyelenggara: e.target.value })} className={inputCls} /></Field>
             <div className="grid grid-cols-2 gap-3">
+              <Field label="Tahun Sertifikat" required><select data-testid="f-tahun" value={form.tahun} onChange={(e) => setForm({ ...form, tahun: Number(e.target.value) })} className={inputCls}>{PERIODE.map((y) => <option key={y} value={y}>{y}</option>)}</select></Field>
               <Field label="Tanggal Pelatihan"><DatePicker testid="f-tanggal" value={form.tanggal_pelatihan} onChange={(v) => setForm({ ...form, tanggal_pelatihan: v })} /></Field>
-              <Field label="Nomor Sertifikat"><input data-testid="f-nomor" value={form.nomor_sertifikat} onChange={(e) => setForm({ ...form, nomor_sertifikat: e.target.value })} className={inputCls} /></Field>
             </div>
+            <Field label="Nomor Sertifikat"><input data-testid="f-nomor" value={form.nomor_sertifikat} onChange={(e) => setForm({ ...form, nomor_sertifikat: e.target.value })} className={inputCls} /></Field>
             <Field label="File Sertifikat (PDF/JPG/PNG, maks 2 MB)" required>
               <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500 transition hover:border-sky-400 hover:bg-sky-50">
                 <Upload className="h-4 w-4" /> {file ? file.name : "Pilih file..."}

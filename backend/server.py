@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Annotated
 import uuid
 import io
+import json
 import jwt
 import bcrypt
 import requests
@@ -278,8 +279,11 @@ def comp_status(jpl: float, cert: int, target_jpl: int, target_cert: int) -> str
     return "DALAM_PROSES"
 
 
-async def employee_stats(user: dict, settings: dict) -> dict:
-    certs = await db.certificates.find({"employee_id": user["id"], "status": "disetujui"}).to_list(1000)
+async def employee_stats(user: dict, settings: dict, tahun: Optional[int] = None) -> dict:
+    q = {"employee_id": user["id"], "status": "disetujui"}
+    if tahun:
+        q["tahun"] = tahun
+    certs = await db.certificates.find(q).to_list(1000)
     total_cert = len(certs)
     total_jpl = sum(c.get("jpl", 0) for c in certs)
     tj, ts = settings["target_jpl"], settings["target_sertifikat"]
@@ -292,6 +296,23 @@ async def employee_stats(user: dict, settings: dict) -> dict:
         "kurang_jpl": max(0, tj - total_jpl), "kurang_sertifikat": max(0, ts - total_cert),
         "status": comp_status(total_jpl, total_cert, tj, ts),
     }
+
+
+PERIODE_START = 2026
+
+
+async def periode_options() -> list:
+    """Available periods (years) for dashboards & uploads. Starts at 2026."""
+    current_year = datetime.now(timezone.utc).year
+    years = set(range(PERIODE_START, max(current_year, PERIODE_START) + 2))
+    for y in await db.certificates.distinct("tahun"):
+        try:
+            y = int(y)
+            if y >= PERIODE_START:
+                years.add(y)
+        except Exception:
+            pass
+    return sorted(years)
 
 
 # ----------------------------------------------------------------------------
@@ -379,10 +400,10 @@ async def list_employees(user: dict = Depends(require_roles("admin", "kepala", "
 
 
 @api_router.get("/me/stats")
-async def my_stats(user: dict = Depends(get_current_user)):
+async def my_stats(tahun: Optional[int] = None, user: dict = Depends(get_current_user)):
     settings = await get_settings()
-    stats = await employee_stats(user, settings)
-    return {"settings": settings, "stats": stats}
+    stats = await employee_stats(user, settings, tahun)
+    return {"settings": settings, "stats": stats, "tahun": tahun, "periode_options": await periode_options()}
 
 
 # ----------------------------------------------------------------------------
@@ -424,11 +445,14 @@ async def upload_certificate(
     penyelenggara: str = Form(""),
     nomor_sertifikat: str = Form(""),
     tanggal_pelatihan: str = Form(""),
+    tahun: int = Form(...),
     jpl: float = Form(...),
     keterangan: str = Form(""),
     file: UploadFile = File(...),
     user: dict = Depends(get_current_user),
 ):
+    if tahun < PERIODE_START:
+        raise HTTPException(status_code=400, detail=f"Tahun sertifikat minimal {PERIODE_START}.")
     ext = (file.filename.rsplit(".", 1)[-1] if "." in file.filename else "").lower()
     if ext not in ALLOWED_EXT:
         raise HTTPException(status_code=400, detail="Format file tidak diizinkan. Gunakan PDF, JPG, JPEG, atau PNG.")
@@ -441,7 +465,7 @@ async def upload_certificate(
     doc = {
         "id": str(uuid.uuid4()), "employee_id": user["id"], "nama_pelatihan": nama_pelatihan,
         "jenis_pelatihan": jenis_pelatihan, "penyelenggara": penyelenggara, "nomor_sertifikat": nomor_sertifikat,
-        "tanggal_pelatihan": tanggal_pelatihan, "jpl": jpl, "keterangan": keterangan,
+        "tanggal_pelatihan": tanggal_pelatihan, "tahun": tahun, "jpl": jpl, "keterangan": keterangan,
         "storage_path": result["path"], "original_filename": file.filename, "content_type": content_type,
         "file_size": len(data), "status": "menunggu", "catatan_verifikasi": "",
         "verified_by": "", "verified_at": "", "created_at": now_iso(),
@@ -620,10 +644,10 @@ async def create_report(data: ReportInput, request: Request, user: dict = Depend
 # Dashboard
 # ----------------------------------------------------------------------------
 @api_router.get("/dashboard/stats")
-async def dashboard_stats(user: dict = Depends(get_current_user)):
+async def dashboard_stats(tahun: Optional[int] = None, user: dict = Depends(get_current_user)):
     settings = await get_settings()
     staff = await db.users.find({"role": {"$in": ["pegawai", "pj_program"]}}).to_list(1000)
-    stats = [await employee_stats(s, settings) for s in staff]
+    stats = [await employee_stats(s, settings, tahun) for s in staff]
     total_pegawai = len(stats)
     memenuhi_jpl = sum(1 for s in stats if s["total_jpl"] >= settings["target_jpl"])
     total_sert = sum(s["total_sertifikat"] for s in stats)
@@ -632,17 +656,31 @@ async def dashboard_stats(user: dict = Depends(get_current_user)):
     programs = await db.programs.count_documents({})
     indicators = await db.indicators.count_documents({})
 
-    # JPL per month (approved certs)
-    certs = await db.certificates.find({"status": "disetujui"}).to_list(5000)
+    # Aggregate per periode (tahun) across all approved certificates (>= 2026)
+    all_certs = await db.certificates.find({"status": "disetujui"}).to_list(5000)
+    yearly = {}
     monthly = {}
-    for c in certs:
+    for c in all_certs:
+        y = c.get("tahun")
+        if not y:
+            try:
+                y = datetime.fromisoformat(c.get("tanggal_pelatihan", "")).year
+            except Exception:
+                y = None
+        if y and y >= PERIODE_START:
+            e = yearly.setdefault(int(y), {"tahun": int(y), "jpl": 0, "sertifikat": 0})
+            e["jpl"] += c.get("jpl", 0)
+            e["sertifikat"] += 1
+        # monthly (respect selected period if any)
+        if tahun and (not y or int(y) != tahun):
+            continue
         tgl = c.get("tanggal_pelatihan", "")
         try:
-            dt = datetime.fromisoformat(tgl)
-            key = dt.strftime("%Y-%m")
+            key = datetime.fromisoformat(tgl).strftime("%Y-%m")
         except Exception:
             key = "lainnya"
         monthly[key] = monthly.get(key, 0) + c.get("jpl", 0)
+    jpl_yearly = [yearly[k] for k in sorted(yearly)]
     monthly_list = [{"bulan": k, "jpl": v} for k, v in sorted(monthly.items()) if k != "lainnya"]
 
     ranking = sorted(stats, key=lambda x: x["total_jpl"], reverse=True)[:10]
@@ -652,6 +690,8 @@ async def dashboard_stats(user: dict = Depends(get_current_user)):
 
     return {
         "settings": settings,
+        "tahun": tahun,
+        "periode_options": await periode_options(),
         "cards": {
             "total_pegawai": total_pegawai,
             "memenuhi_jpl": memenuhi_jpl,
@@ -663,6 +703,7 @@ async def dashboard_stats(user: dict = Depends(get_current_user)):
             "total_indikator": indicators,
         },
         "jpl_monthly": monthly_list,
+        "jpl_yearly": jpl_yearly,
         "ranking": ranking,
         "avg_jpl": avg_jpl,
         "median_jpl": median_jpl,
@@ -968,11 +1009,11 @@ async def export_certificates(format: str = Query("csv"), user: dict = Depends(r
     ids = list({c["employee_id"] for c in certs})
     users = await db.users.find({"id": {"$in": ids}}).to_list(1000)
     umap = {u["id"]: u for u in users}
-    headers = ["No", "Pegawai", "NIP", "Pelatihan", "Penyelenggara", "JPL", "Tanggal", "Status"]
+    headers = ["No", "Pegawai", "NIP", "Pelatihan", "Penyelenggara", "JPL", "Tahun", "Tanggal", "Status"]
     rows = []
     for i, c in enumerate(certs, 1):
         emp = umap.get(c["employee_id"], {})
-        rows.append([i, emp.get("nama", "-"), emp.get("nip", "-"), c["nama_pelatihan"], c.get("penyelenggara", ""), c["jpl"], c.get("tanggal_pelatihan", ""), c["status"]])
+        rows.append([i, emp.get("nama", "-"), emp.get("nip", "-"), c["nama_pelatihan"], c.get("penyelenggara", ""), c["jpl"], c.get("tahun", ""), c.get("tanggal_pelatihan", ""), c["status"]])
     return _export_response(format, "rekap_sertifikat", "REKAP SERTIFIKAT PELATIHAN", headers, rows)
 
 
@@ -1112,6 +1153,143 @@ async def cron_sync_dataset(request: Request, background: BackgroundTasks):
 async def dataset_sync_status(user: dict = Depends(get_current_user)):
     snaps = await db.dataset_snapshots.find().to_list(10)
     return {s["id"]: {"generated_at": s.get("generated_at"), "count": s.get("count", 0)} for s in snaps}
+
+
+# ----------------------------------------------------------------------------
+# Backup & Restore (admin only)
+# ----------------------------------------------------------------------------
+BACKUP_COLLECTIONS = ["users", "certificates", "programs", "indicators",
+                      "indicator_reports", "policy_briefs", "settings",
+                      "notifications", "audit_logs", "dataset_snapshots"]
+
+
+def _strip_mongo_id(doc: dict) -> dict:
+    d = dict(doc)
+    d.pop("_id", None)
+    return d
+
+
+@api_router.get("/backup/export")
+async def backup_export(request: Request, user: dict = Depends(require_roles("admin"))):
+    data = {}
+    for col in BACKUP_COLLECTIONS:
+        docs = await db[col].find().to_list(100000)
+        data[col] = [_strip_mongo_id(d) for d in docs]
+    payload = {
+        "app": "E-SPAK",
+        "version": 1,
+        "exported_at": now_iso(),
+        "exported_by": user.get("nama"),
+        "collections": data,
+    }
+    await log_activity(user, "Ekspor backup penuh (JSON)", "Backup", request)
+    content = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+    fname = f"espak_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.json"
+    return Response(content=content, media_type="application/json",
+                    headers={"Content-Disposition": f"attachment; filename={fname}"})
+
+
+@api_router.post("/backup/import")
+async def backup_import(request: Request, file: UploadFile = File(...),
+                        mode: str = Form("replace"),
+                        user: dict = Depends(require_roles("admin"))):
+    raw = await file.read()
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="File backup tidak valid (bukan JSON)")
+    collections = payload.get("collections")
+    if not isinstance(collections, dict):
+        raise HTTPException(status_code=400, detail="Struktur backup tidak dikenali")
+    mode = "merge" if mode == "merge" else "replace"
+    summary = {}
+    for col, docs in collections.items():
+        if col not in BACKUP_COLLECTIONS or not isinstance(docs, list):
+            continue
+        if mode == "replace":
+            await db[col].delete_many({})
+        count = 0
+        for d in docs:
+            d = _strip_mongo_id(d)
+            if d.get("id"):
+                await db[col].update_one({"id": d["id"]}, {"$set": d}, upsert=True)
+            else:
+                await db[col].insert_one(d)
+            count += 1
+        summary[col] = count
+    await log_activity(user, f"Pulihkan backup (mode: {mode})", "Backup", request)
+    return {"ok": True, "mode": mode, "restored": summary}
+
+
+@api_router.get("/backup/excel")
+async def backup_excel(user: dict = Depends(require_roles("admin"))):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Pengguna"
+    ws.append(["No", "Nama", "Username", "NIP", "Email", "Role", "Jabatan", "Unit", "Status"])
+    users = await db.users.find().to_list(10000)
+    for i, u in enumerate(users, 1):
+        ws.append([i, u.get("nama", ""), u.get("username", ""), u.get("nip", ""), u.get("email", ""),
+                   u.get("role", ""), u.get("jabatan", ""), u.get("unit", ""), u.get("status", "")])
+
+    programs = await db.programs.find().to_list(10000)
+    pmap = {p["id"]: p.get("nama_program", "") for p in programs}
+    ws2 = wb.create_sheet("Program")
+    ws2.append(["No", "Nama Program", "Penanggung Jawab", "Status"])
+    for i, p in enumerate(programs, 1):
+        ws2.append([i, p.get("nama_program", ""), p.get("penanggung_jawab", ""), p.get("status", "")])
+
+    inds = await db.indicators.find().to_list(10000)
+    imap = {}
+    ws3 = wb.create_sheet("Indikator")
+    ws3.append(["No", "Program", "Indikator", "Target", "Satuan", "Status"])
+    for i, ind in enumerate(inds, 1):
+        imap[ind["id"]] = (ind.get("nama_indikator", ""), pmap.get(ind.get("program_id"), "-"))
+        ws3.append([i, pmap.get(ind.get("program_id"), "-"), ind.get("nama_indikator", ""),
+                    ind.get("target", ""), ind.get("satuan", "%"), ind.get("status", "")])
+
+    ws4 = wb.create_sheet("Capaian SPM")
+    ws4.append(["No", "Program", "Indikator", "Bulan", "Tahun", "Numerator", "Denominator", "Capaian(%)", "Target(%)", "Status"])
+    reports = await db.indicator_reports.find().to_list(100000)
+    for i, r in enumerate(reports, 1):
+        nm, prog = imap.get(r.get("indicator_id"), ("-", "-"))
+        ws4.append([i, prog, nm, r.get("bulan", ""), r.get("tahun", ""), r.get("numerator", ""),
+                    r.get("denominator", ""), r.get("capaian", ""), r.get("target", ""), r.get("status", "")])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    fname = f"espak_data_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.xlsx"
+    return Response(content=buf.getvalue(),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment; filename={fname}"})
+
+
+@api_router.get("/backup/csv")
+async def backup_csv(dataset: str = Query("users"), user: dict = Depends(require_roles("admin"))):
+    if dataset == "users":
+        users = await db.users.find().to_list(10000)
+        headers = ["No", "Nama", "Username", "NIP", "Email", "Role", "Jabatan", "Unit", "Status"]
+        rows = [[i, u.get("nama", ""), u.get("username", ""), u.get("nip", ""), u.get("email", ""),
+                 u.get("role", ""), u.get("jabatan", ""), u.get("unit", ""), u.get("status", "")]
+                for i, u in enumerate(users, 1)]
+        name = "data_pengguna"
+    elif dataset == "spm":
+        programs = await db.programs.find().to_list(10000)
+        pmap = {p["id"]: p.get("nama_program", "") for p in programs}
+        inds = await db.indicators.find().to_list(10000)
+        imap = {ind["id"]: (ind.get("nama_indikator", ""), pmap.get(ind.get("program_id"), "-")) for ind in inds}
+        reports = await db.indicator_reports.find().to_list(100000)
+        headers = ["No", "Program", "Indikator", "Bulan", "Tahun", "Numerator", "Denominator", "Capaian(%)", "Target(%)", "Status"]
+        rows = []
+        for i, r in enumerate(reports, 1):
+            nm, prog = imap.get(r.get("indicator_id"), ("-", "-"))
+            rows.append([i, prog, nm, r.get("bulan", ""), r.get("tahun", ""), r.get("numerator", ""),
+                         r.get("denominator", ""), r.get("capaian", ""), r.get("target", ""), r.get("status", "")])
+        name = "capaian_spm"
+    else:
+        raise HTTPException(status_code=400, detail="dataset harus 'users' atau 'spm'")
+    return Response(content=_csv_bytes(headers, rows), media_type="text/csv",
+                    headers={"Content-Disposition": f"attachment; filename={name}.csv"})
 
 
 # ----------------------------------------------------------------------------

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import api, { apiErr } from "@/lib/api";
+import api, { apiErr, API } from "@/lib/api";
 import { PageHeader, Empty, ROLE_LABEL } from "@/components/common";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Target, Users, ScrollText, Save, Plus, Trash2, Pencil } from "lucide-react";
+import { Target, Users, ScrollText, Save, Plus, Trash2, Pencil, Database, Download, Upload, FileSpreadsheet, FileText, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 const inputCls = "w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
@@ -116,8 +116,83 @@ function AuditTab() {
   );
 }
 
-export default function Pengaturan() {
+function BackupTab() {
+  const token = localStorage.getItem("espak_token");
+  const [restoring, setRestoring] = useState(false);
+  const [mode, setMode] = useState("merge");
+
+  const dl = (path) => window.open(`${API}${path}${path.includes("?") ? "&" : "?"}auth=${token}`, "_blank");
+
+  const onFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const info = mode === "replace" ? "MENGGANTI (menghapus) seluruh data lama" : "menggabungkan dengan data yang ada";
+    if (!window.confirm(`Pulihkan backup ini?\n\nMode "${mode}" akan ${info}.\nLanjutkan?`)) { e.target.value = ""; return; }
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("mode", mode);
+    setRestoring(true);
+    try {
+      const r = await api.post("/backup/import", fd);
+      const total = Object.values(r.data.restored || {}).reduce((a, b) => a + Number(b), 0);
+      toast.success(`Backup dipulihkan (${total} data, mode ${r.data.mode}). Muat ulang halaman untuk melihat perubahan.`);
+    } catch (er) { toast.error(apiErr(er)); }
+    finally { setRestoring(false); e.target.value = ""; }
+  };
+
+  const btn = "flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition";
+
   return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="mb-3 flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-sky-50 text-sky-600"><Database className="h-5 w-5" /></div>
+          <div><h3 className="font-heading font-semibold text-slate-800">Backup Penuh (JSON)</h3><p className="text-xs text-slate-500">Seluruh data sistem dalam satu berkas yang dapat dipulihkan kembali.</p></div>
+        </div>
+        <button data-testid="dl-backup-json" onClick={() => dl("/backup/export")} className={`${btn} bg-gradient-to-r from-sky-500 to-teal-500 text-white shadow-lg hover:opacity-95`}><Download className="h-4 w-4" /> Unduh Backup JSON</button>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="mb-3 flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><FileSpreadsheet className="h-5 w-5" /></div>
+          <div><h3 className="font-heading font-semibold text-slate-800">Ekspor Excel</h3><p className="text-xs text-slate-500">Workbook berisi sheet Pengguna, Program, Indikator & Capaian SPM.</p></div>
+        </div>
+        <button data-testid="dl-backup-xlsx" onClick={() => dl("/backup/excel")} className={`${btn} bg-emerald-600 text-white shadow hover:bg-emerald-700`}><Download className="h-4 w-4" /> Unduh Excel (.xlsx)</button>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="mb-3 flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-600"><FileText className="h-5 w-5" /></div>
+          <div><h3 className="font-heading font-semibold text-slate-800">Ekspor CSV per Data</h3><p className="text-xs text-slate-500">Arsip terpisah untuk data pengguna dan capaian SPM.</p></div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button data-testid="dl-csv-users" onClick={() => dl("/backup/csv?dataset=users")} className={`${btn} border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100`}><Download className="h-4 w-4" /> CSV Pengguna</button>
+          <button data-testid="dl-csv-spm" onClick={() => dl("/backup/csv?dataset=spm")} className={`${btn} border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100`}><Download className="h-4 w-4" /> CSV Capaian SPM</button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-rose-200 bg-rose-50/40 p-5">
+        <div className="mb-3 flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-rose-100 text-rose-600"><Upload className="h-5 w-5" /></div>
+          <div><h3 className="font-heading font-semibold text-slate-800">Pulihkan dari Backup (JSON)</h3><p className="text-xs text-slate-500">Unggah berkas backup JSON untuk memulihkan data.</p></div>
+        </div>
+        <div className="mb-3">
+          <label className="mb-1 block text-xs font-semibold text-slate-600">Mode Pemulihan</label>
+          <select value={mode} onChange={(e) => setMode(e.target.value)} className={inputCls} data-testid="restore-mode">
+            <option value="merge">Gabung (perbarui/tambah, data lain tetap)</option>
+            <option value="replace">Ganti Total (hapus dulu lalu isi ulang)</option>
+          </select>
+        </div>
+        <label className={`${btn} w-fit cursor-pointer bg-rose-600 text-white shadow hover:bg-rose-700 ${restoring ? "pointer-events-none opacity-60" : ""}`}>
+          <RotateCcw className="h-4 w-4" /> {restoring ? "Memulihkan..." : "Pilih Berkas & Pulihkan"}
+          <input type="file" accept="application/json,.json" className="hidden" onChange={onFile} data-testid="restore-file" disabled={restoring} />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+export default function Pengaturan() {  return (
     <div className="space-y-6">
       <PageHeader title="Pengaturan Sistem" desc="Kelola target kompetensi, pengguna, dan audit log aktivitas." />
       <Tabs defaultValue="target">
@@ -125,10 +200,12 @@ export default function Pengaturan() {
           <TabsTrigger value="target" data-testid="tab-target"><Target className="mr-1.5 h-4 w-4" /> Target</TabsTrigger>
           <TabsTrigger value="users" data-testid="tab-users"><Users className="mr-1.5 h-4 w-4" /> Pengguna</TabsTrigger>
           <TabsTrigger value="audit" data-testid="tab-audit"><ScrollText className="mr-1.5 h-4 w-4" /> Audit Log</TabsTrigger>
+          <TabsTrigger value="backup" data-testid="tab-backup"><Database className="mr-1.5 h-4 w-4" /> Backup</TabsTrigger>
         </TabsList>
         <TabsContent value="target" className="mt-4"><TargetTab /></TabsContent>
         <TabsContent value="users" className="mt-4"><UsersTab /></TabsContent>
         <TabsContent value="audit" className="mt-4"><AuditTab /></TabsContent>
+        <TabsContent value="backup" className="mt-4"><BackupTab /></TabsContent>
       </Tabs>
     </div>
   );

@@ -52,6 +52,49 @@ async def seed_data(db, hash_password):
                 "created_at": now_iso(), "updated_at": now_iso(),
             })
 
-    # NOTE: Default seeding of certificates, SPM (programs/indicators/reports),
-    # and policy briefs is intentionally disabled so the website starts clean.
-    return
+    all_users = await db.users.find().to_list(1000)
+    pj_kia = next((u for u in all_users if u["username"] == "pjkia"), None)
+    pj_tb = next((u for u in all_users if u["username"] == "pjtb"), None)
+
+    # ---- Official SPM Kesehatan (Permenkes No. 6 Tahun 2024) ----
+    # Structure only: 12 jenis pelayanan dasar kabupaten/kota (target 100%).
+    # Monthly achievement (capaian) is left EMPTY to be filled by the puskesmas.
+    # Certificates & policy briefs are intentionally NOT seeded.
+    if await db.programs.count_documents({}) == 0:
+        spm_def = [
+            ("Kesehatan Ibu, Bayi & Balita (KIA)", pj_kia, [
+                "Pelayanan Kesehatan Ibu Hamil",
+                "Pelayanan Kesehatan Ibu Bersalin",
+                "Pelayanan Kesehatan Bayi Baru Lahir",
+                "Pelayanan Kesehatan Balita",
+            ]),
+            ("Kesehatan Usia Sekolah, Produktif & Lanjut", None, [
+                "Pelayanan Kesehatan pada Usia Pendidikan Dasar",
+                "Pelayanan Kesehatan pada Usia Produktif",
+                "Pelayanan Kesehatan pada Usia Lanjut",
+            ]),
+            ("Penyakit Tidak Menular (PTM)", None, [
+                "Pelayanan Kesehatan Penderita Hipertensi",
+                "Pelayanan Kesehatan Penderita Diabetes Melitus",
+            ]),
+            ("Kesehatan Jiwa", None, [
+                "Pelayanan Kesehatan Orang dengan Gangguan Jiwa (ODGJ) Berat",
+            ]),
+            ("Pencegahan & Pengendalian Penyakit Menular (P2P)", pj_tb, [
+                "Pelayanan Kesehatan Orang Terduga Tuberkulosis",
+                "Pelayanan Kesehatan Orang dengan Risiko Terinfeksi HIV",
+            ]),
+        ]
+        for pnama, pj, inds in spm_def:
+            pid = str(uuid.uuid4())
+            await db.programs.insert_one({
+                "id": pid, "nama_program": pnama,
+                "penanggung_jawab_id": pj["id"] if pj else "",
+                "penanggung_jawab": pj["nama"] if pj else "-",
+                "status": "aktif", "created_at": now_iso(),
+            })
+            for inama in inds:
+                await db.indicators.insert_one({
+                    "id": str(uuid.uuid4()), "program_id": pid, "nama_indikator": inama,
+                    "target": 100, "satuan": "%", "status": "aktif", "created_at": now_iso(),
+                })

@@ -1,27 +1,42 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/lib/api";
-import { StatCard, Progress, Badge, PageHeader, Empty, BULAN } from "@/components/common";
+import { StatCard, Progress, Badge, PageHeader, Empty } from "@/components/common";
 import {
   Users, UserCheck, UserX, Award, Clock, Target, ListChecks, Activity,
-  TrendingUp, AlertTriangle, CheckCircle2, Trophy,
+  AlertTriangle, CheckCircle2, Trophy, Calendar,
 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, CartesianGrid } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from "recharts";
+
+function PeriodeSelect({ tahun, setTahun, options }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Calendar className="h-4 w-4 text-slate-400" />
+      <select data-testid="periode-select" value={tahun} onChange={(e) => setTahun(Number(e.target.value))} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100">
+        {options.map((y) => <option key={y} value={y}>Periode {y}</option>)}
+      </select>
+    </div>
+  );
+}
 
 function PegawaiHome() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [certs, setCerts] = useState([]);
+  const [tahun, setTahun] = useState(Math.max(2026, new Date().getFullYear()));
   useEffect(() => {
-    api.get("/me/stats").then((r) => setData(r.data));
+    api.get("/me/stats", { params: { tahun } }).then((r) => setData(r.data));
     api.get("/certificates").then((r) => setCerts(r.data));
-  }, []);
+  }, [tahun]);
   if (!data) return <Empty text="Memuat..." />;
   const { stats, settings } = data;
+  const periodeOptions = data.periode_options || [tahun];
   const done = stats.status === "MEMENUHI_JPL_DAN_SERTIFIKAT";
   return (
     <div className="space-y-6">
-      <PageHeader title={`Selamat Datang, ${user.nama.split(",")[0]}`} desc="Ringkasan pencapaian pengembangan kompetensi Anda." />
+      <PageHeader title={`Selamat Datang, ${user.nama.split(",")[0]}`} desc="Ringkasan pencapaian pengembangan kompetensi Anda per periode.">
+        <PeriodeSelect tahun={tahun} setTahun={setTahun} options={periodeOptions} />
+      </PageHeader>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard testid="stat-jpl" label="Total JPL" value={stats.total_jpl} sub={`Target ${settings.target_jpl} JPL`} icon={Clock} tone="sky" />
         <StatCard testid="stat-sertifikat" label="Total Sertifikat" value={stats.total_sertifikat} sub={`Target ${settings.target_sertifikat} sertifikat`} icon={Award} tone="emerald" />
@@ -73,12 +88,13 @@ function AdminHome() {
   const [d, setD] = useState(null);
   const [spm, setSpm] = useState(null);
   const [ews, setEws] = useState(null);
+  const [tahun, setTahun] = useState(Math.max(2026, new Date().getFullYear()));
   useEffect(() => {
     const bulan = new Date().getMonth() + 1;
-    api.get("/dashboard/stats").then((r) => setD(r.data));
-    api.get("/spm/dashboard", { params: { bulan } }).then((r) => setSpm(r.data));
+    api.get("/dashboard/stats", { params: { tahun } }).then((r) => setD(r.data));
+    api.get("/spm/dashboard", { params: { bulan, tahun } }).then((r) => setSpm(r.data));
     api.get("/ews").then((r) => setEws(r.data)).catch(() => {});
-  }, []);
+  }, [tahun]);
   if (!d) return <Empty text="Memuat dashboard..." />;
   const c = d.cards;
   const dist = d.distribusi_status;
@@ -88,11 +104,14 @@ function AdminHome() {
     { name: "Memenuhi JPL", value: dist.memenuhi_jpl },
     { name: "Memenuhi Target", value: dist.memenuhi_semua },
   ];
-  const monthly = d.jpl_monthly.map((m) => ({ ...m, label: (() => { const [y, mm] = m.bulan.split("-"); return `${BULAN[parseInt(mm)].slice(0, 3)} ${y.slice(2)}`; })() }));
+  const yearly = (d.jpl_yearly || []).map((y) => ({ label: String(y.tahun), jpl: y.jpl, sertifikat: y.sertifikat }));
+  const periodeOptions = d.periode_options || [tahun];
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Selamat Datang di E-SPAK" desc={`Ringkasan monitoring kinerja pegawai & capaian SPM · ${user.jabatan || ""}`} />
+      <PageHeader title="Selamat Datang di E-SPAK" desc={`Monitoring kinerja pegawai & capaian SPM · Periode ${tahun}${user.jabatan ? " · " + user.jabatan : ""}`}>
+        <PeriodeSelect tahun={tahun} setTahun={setTahun} options={periodeOptions} />
+      </PageHeader>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard testid="card-total-pegawai" label="Total Pegawai" value={c.total_pegawai} icon={Users} tone="sky" />
@@ -107,15 +126,17 @@ function AdminHome() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 lg:col-span-2">
-          <h3 className="mb-4 font-heading font-semibold text-slate-800">Total JPL per Bulan</h3>
-          {monthly.length === 0 ? <Empty /> : (
+          <h3 className="mb-4 font-heading font-semibold text-slate-800">Total JPL & Sertifikat per Periode (Tahun)</h3>
+          {yearly.length === 0 ? <Empty text="Belum ada data capaian JPL. Data muncul setelah sertifikat disetujui." /> : (
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={monthly}>
+              <BarChart data={yearly}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f7" />
                 <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#64748b" }} />
                 <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
                 <Tooltip />
-                <Bar dataKey="jpl" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="jpl" name="Total JPL" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="sertifikat" name="Total Sertifikat" fill="#14b8a6" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
