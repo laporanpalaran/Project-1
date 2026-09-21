@@ -23,7 +23,7 @@ export default function PolicyBrief() {
   const [saving, setSaving] = useState(false);
 
   const load = () => api.get("/policy-briefs").then((r) => setBriefs(r.data));
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const generate = async () => {
     try { const { data } = await api.post("/policy-briefs/generate"); setForm(data); setOpen(true); toast.success("Draft policy brief dibuat otomatis dari data SPM."); }

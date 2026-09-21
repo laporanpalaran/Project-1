@@ -20,7 +20,7 @@ export default function MonitoringSPM() {
     api.get("/spm/dashboard", { params }).then((r) => setD(r.data));
   };
   useEffect(() => { api.get("/programs").then((r) => setPrograms(r.data)); }, []);
-  useEffect(load, [bulan, tahun, programId]);
+  useEffect(() => { load(); }, [bulan, tahun, programId]);
 
   if (!d) return <Empty text="Memuat..." />;
   const s = d.summary;

@@ -477,11 +477,16 @@ async def delete_certificate(cert_id: str, user: dict = Depends(get_current_user
 
 @api_router.get("/certificates/{cert_id}/file")
 async def download_certificate(cert_id: str, request: Request, auth: Optional[str] = Query(None)):
-    # allow auth via query param for inline preview
-    if not (request.headers.get("Authorization") or auth):
+    header = request.headers.get("Authorization", "")
+    token = header[7:] if header.startswith("Bearer ") else auth
+    if not token:
         raise HTTPException(status_code=401, detail="Tidak terautentikasi")
+    try:
+        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token tidak valid")
     cert = await db.certificates.find_one({"id": cert_id})
-    if not cert:
+    if not cert or not cert.get("storage_path"):
         raise HTTPException(status_code=404, detail="File tidak ditemukan")
     data, ct = get_object(cert["storage_path"])
     return Response(content=data, media_type=cert.get("content_type", ct))

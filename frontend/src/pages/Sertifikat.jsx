@@ -19,7 +19,7 @@ export default function Sertifikat() {
     api.get("/certificates").then((r) => setCerts(r.data));
     api.get("/me/stats").then((r) => setStats(r.data));
   };
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const onFile = (e) => {
     const f = e.target.files[0];

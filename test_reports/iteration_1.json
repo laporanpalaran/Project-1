@@ -1,0 +1,42 @@
+{
+  "summary": "E-SPAK MVP end-to-end testing. Backend: 23/23 pytest tests PASSED covering auth (login username/NIP, wrong password, /me), RBAC (pegawai 403 on users/employees/indicators, admin allowed), dashboard cards (12 pegawai/5 program/10 indikator), pegawai /me/stats, employees sorted by JPL desc, certificate upload validation (bad format/oversize/happy path with approve → JPL increment + notification), SPM programs+indicators counts, /reports upsert with capaian & hijau/kuning/merah logic, /spm/dashboard, /ews, /policy-briefs/generate + create, /settings PUT reflects in /me/stats, /audit-logs, CSV exports via ?auth= query. Frontend: verified login, admin dashboard (8 cards + charts + 12 sidebar items), full navigation to Verifikasi/MonitoringPegawai/MonitoringSPM/InputSPM/EWS/PolicyBrief/Pengaturan/Program/Laporan, InputSPM auto-calculates capaian (75%), Policy Brief 'Generate Otomatis' opens pre-filled modal, Pengaturan tabs target/users/audit switch and load data (14 user rows, 20+ audit rows), pegawai dashboard shows progress-message and Upload Sertifikat modal with all fields (f-nama, f-jpl, f-file). Fixed a runtime bug (see updated_files) that was blocking navigation on many pages.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Multiple pages (Verifikasi, Sertifikat, Pengaturan, PolicyBrief, Program, MonitoringSPM)", "issue": "Runtime crash 'destroy is not a function' — useEffect(load, deps) received a function that returns a Promise, so React tried to invoke the returned Promise as a cleanup. FIXED by wrapping as useEffect(() => { load(); }, deps).", "selector": "n/a", "priority": "CRITICAL (fixed)"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Upload Sertifikat modal / InputSPM", "issues": ["'Tanggal Pelatihan' uses browser-default date input (mm/dd/yyyy) instead of a shadcn Calendar/Popover picker — inconsistent with rest of the UI. Consider using shadcn <Calendar> component."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Optional: replace native date inputs with shadcn Calendar component for consistency.",
+    "Nav item data-testids differ slightly from names in the review request (they are derived from the label). Actual ids include: nav-verifikasi-sertifikat, nav-monitoring-pegawai, nav-monitoring-spm, nav-input-data-spm, nav-early-warning-system, nav-policy-brief, nav-pengaturan-sistem, nav-program-indikator, nav-laporan-export, nav-monitoring-jpl, nav-roadmap-implementasi, nav-dashboard, nav-dashboard-saya, nav-sertifikat-jpl. Update review docs accordingly."
+  ],
+  "critical_code_review_comments": [
+    "server.py (894 lines) is close to the 700-line guideline threshold — consider splitting into routers (auth, users, certs, spm, misc) for maintainability.",
+    "spm_dashboard calls list_reports() twice per request (once for month, once for whole year) — small perf hit; acceptable at current scale but cacheable.",
+    "employee_stats issues one Mongo query per staff member (N+1). For 12 users it is fine, but at scale prefer a single aggregation.",
+    "download_certificate accepts ?auth=<token> but does not decode/validate the JWT — any non-empty string in the header/query is accepted (only the DB lookup is done through get_object). Consider calling get_current_user for consistency and access control by role.",
+    "put_object/get_object are synchronous requests.* calls inside async endpoints and will block the event loop under load — consider httpx.AsyncClient.",
+    "Auth is exempt from CSRF but CORS allow_origins='*' with allow_credentials=True is invalid per CORS spec (browsers reject). If cookies are ever added, set explicit origins."
+  ],
+  "updated_files": [
+    "/app/frontend/src/pages/Verifikasi.jsx",
+    "/app/frontend/src/pages/Sertifikat.jsx",
+    "/app/frontend/src/pages/Pengaturan.jsx",
+    "/app/frontend/src/pages/PolicyBrief.jsx",
+    "/app/frontend/src/pages/Program.jsx",
+    "/app/frontend/src/pages/MonitoringSPM.jsx",
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {"backend": "100% (23/23)", "frontend": "100% of tested flows after fix"},
+  "test_credentials": "admin/admin123, kepala/kepala123, pjkia/pj123, pegawai1/pegawai123 — all working.",
+  "seed_data_creation": "None. Startup seed already provisions 12 staff, 5 programs, 10 indicators, reports for 5 months, certificates. Tests use TEST_ prefix and clean up after themselves.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All /api/* endpoints are healthy. Nav data-testids are label-derived (see action_items). The frontend previously had a class of bugs where useEffect(load, deps) was passing an async function directly (returning a Promise) causing 'destroy is not a function' crashes; this was fixed in 6 pages. If new pages are added, ensure useEffect callback is wrapped: useEffect(() => { load(); }, deps).",
+  "rca of the issue": "Root cause of the frontend 'destroy is not a function' runtime error: `useEffect(load, [...])` where `load = () => api.get(...).then(...)` returned a Promise. React treats any non-function return value from useEffect as a bug and, on re-render/unmount, tries to call the returned value as a cleanup destroy(). Since a Promise is not a function, it throws. Mitigation applied: wrap in an arrow function `useEffect(() => { load(); }, [...])` so the effect returns undefined."
+}

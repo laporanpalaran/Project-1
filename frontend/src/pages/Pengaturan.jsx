@@ -33,7 +33,7 @@ function UsersTab() {
   const [edit, setEdit] = useState(null);
   const [form, setForm] = useState(emptyUser);
   const load = () => api.get("/users").then((r) => setUsers(r.data));
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const openNew = () => { setEdit(null); setForm(emptyUser); setOpen(true); };
   const openEdit = (u) => { setEdit(u); setForm({ ...u, password: "" }); setOpen(true); };

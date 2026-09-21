@@ -22,7 +22,7 @@ export default function Program() {
     api.get("/programs").then((r) => setPrograms(r.data));
     api.get("/indicators").then((r) => setIndicators(r.data));
   };
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const addProgram = async (e) => {
     e.preventDefault();

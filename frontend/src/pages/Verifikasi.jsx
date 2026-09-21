@@ -14,7 +14,7 @@ export default function Verifikasi() {
   const [alasan, setAlasan] = useState("");
 
   const load = () => api.get("/certificates", { params: filter ? { status: filter } : {} }).then((r) => setCerts(r.data));
-  useEffect(load, [filter]);
+  useEffect(() => { load(); }, [filter]);
 
   const approve = async (id) => {
     try { await api.put(`/certificates/${id}/verify`, { status: "disetujui", catatan: "" }); toast.success("Sertifikat disetujui"); load(); }
