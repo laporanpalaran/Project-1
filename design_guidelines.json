@@ -1,0 +1,140 @@
+{
+  "project_name": "E-SPAK Puskesmas Palaran",
+  "app_type": "dashboard",
+  "archetype": "ORGANIC_AND_SWISS_HEALTH_TECH",
+  "theme": {
+    "default_mode": "light",
+    "supported_modes": ["light", "dark"],
+    "primary_color": "#0284C7",
+    "primary_hover": "#0369A1",
+    "secondary_color": "#0D9488",
+    "background_light": "#F8FAFC",
+    "surface_light": "#FFFFFF",
+    "border_light": "#E2E8F0",
+    "text_primary_light": "#0F172A",
+    "text_secondary_light": "#475569",
+    "status_colors": {
+      "green_achieved": {
+        "bg": "#ECFDF5",
+        "border": "#A7F3D0",
+        "text": "#047857",
+        "badge": "#10B981"
+      },
+      "yellow_warning": {
+        "bg": "#FFFBEB",
+        "border": "#FDE68A",
+        "text": "#B45309",
+        "badge": "#F59E0B"
+      },
+      "red_critical": {
+        "bg": "#FEF2F2",
+        "border": "#FECACA",
+        "text": "#B91C1C",
+        "badge": "#EF4444"
+      },
+      "blue_info": {
+        "bg": "#F0F9FF",
+        "border": "#BAE6FD",
+        "text": "#0369A1",
+        "badge": "#0284C7"
+      }
+    }
+  },
+  "competency_status_badges": {
+    "BELUM_MULAI": {
+      "label": "Belum Mulai",
+      "style": "bg-slate-100 text-slate-700 border-slate-200"
+    },
+    "DALAM_PROSES": {
+      "label": "Dalam Proses",
+      "style": "bg-amber-50 text-amber-700 border-amber-200"
+    },
+    "MEMENUHI_JPL": {
+      "label": "Memenuhi JPL (>=40 Jam)",
+      "style": "bg-sky-50 text-sky-700 border-sky-200"
+    },
+    "MEMENUHI_JPL_DAN_SERTIFIKAT": {
+      "label": "Memenuhi JPL & Sertifikat",
+      "style": "bg-emerald-50 text-emerald-700 border-emerald-200"
+    }
+  },
+  "typography": {
+    "font_family_heading": "Plus Jakarta Sans, Inter, system-ui, sans-serif",
+    "font_family_body": "Inter, system-ui, sans-serif",
+    "font_family_mono": "JetBrains Mono, Fira Code, monospace",
+    "scale": {
+      "h1": "text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-semibold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "h4": "text-lg font-medium",
+      "body": "text-sm sm:text-base leading-relaxed",
+      "small": "text-xs font-medium uppercase tracking-wider text-slate-500"
+    }
+  },
+  "spacing_and_layout": {
+    "sidebar_width": "w-64",
+    "header_height": "h-16",
+    "content_padding": "p-4 sm:p-6 lg:p-8",
+    "grid_strategy": "MODE B: High Density Dashboard Grid for analytics & SPM metrics",
+    "card_padding": "p-5 sm:p-6",
+    "gap_scale": "gap-4 sm:gap-6"
+  },
+  "components_and_ui_library": {
+    "icons": "lucide-react",
+    "charts": "recharts",
+    "notifications": "sonner",
+    "modals_dialogs": "Radix UI / Shadcn Dialog",
+    "select_dropdowns": "Radix UI / Shadcn Select",
+    "table": "Custom styled HTML table with sticky header, pagination & search",
+    "progress_bars": "Custom animated gradient progress bar with threshold indicators"
+  },
+  "key_user_roles": [
+    {
+      "role": "Admin",
+      "label": "Administrator Sistem",
+      "description": "Kelola data pegawai, verifikasi sertifikat, kelola indikator SPM, dan pengaturan sistem."
+    },
+    {
+      "role": "Kepala Puskesmas",
+      "label": "Kepala Puskesmas (Leadership)",
+      "description": "Executive dashboard, analisis Policy Brief, sistem peringatan dini (EWS), ringkasan kinerja JPL & SPM."
+    },
+    {
+      "role": "Pegawai",
+      "label": "Pegawai / Nakes",
+      "description": "Dashboard pribadi, upload sertifikat kompetensi (JPL), pantau pencapaian 40 JPL & 8 sertifikat."
+    },
+    {
+      "role": "Penanggung Jawab Program",
+      "label": "PJ Program Kesehatan",
+      "description": "Input pencapaian indikator SPM bulanan, pemantauan target vs realisasi program kesehatan."
+    }
+  ],
+  "image_urls": {
+    "puskesmas_logo_mock": "https://images.pexels.com/photos/32254667/pexels-photo-32254667.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "avatars": [
+      {
+        "name": "dr. H. Ahmad Fauzi, M.Kes",
+        "role": "Kepala Puskesmas Palaran",
+        "nip": "19780512 200312 1 004",
+        "url": "https://images.pexels.com/photos/32115905/pexels-photo-32115905.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+      },
+      {
+        "name": "Ns. Siti Rahmawati, S.Kep",
+        "role": "PJ Program SPM / Perawat Utama",
+        "nip": "19850321 201001 2 015",
+        "url": "https://images.pexels.com/photos/32254667/pexels-photo-32254667.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Build a fully functional, highly interactive single page react web app for E-SPAK Puskesmas Palaran with Bahasa Indonesia terminology.",
+    "Implement role switching at top nav (Admin, Kepala Puskesmas, Pegawai, Penanggung Jawab Program) so evaluator can test all 4 perspectives seamlessly.",
+    "Target 1: Employee Competency Monitoring -> Target 40 JPL (Jam Pelajaran) + 8 Sertifikat per year. Include status indicators: BELUM MULAI, DALAM PROSES, MEMENUHI JPL, MEMENUHI JPL & SERTIFIKAT.",
+    "Target 2: SPM Health Program Indicators -> 12 SPM indicators (Ibu Hamil, Ibu Bersalin, Bayi Baru Lahir, Balita, Usia Pendidikan, Usia Produktif, Lansia, Hipertensi, Diabetes Melitus, ODGJ, TB, HIV). Color code Green (>=100%), Yellow (80-99%), Red (<80%).",
+    "Include Certificate Upload Modal with form fields: Judul Pelatihan, Penyelenggara, Tanggal, Jumlah JPL, File Upload simulation, and instant verification workflow for Admin.",
+    "Provide Executive Policy Brief generator with export preview modal and Early Warning System (EWS) notification panel.",
+    "Ensure every interactive button, input, tab, filter, and badge has a descriptive kebab-case data-testid attribute for automated testing.",
+    "Use clean health-tech styling with light gray background, navy/teal headers, high contrast text, crisp card borders, and smooth transitions."
+  ]
+}
