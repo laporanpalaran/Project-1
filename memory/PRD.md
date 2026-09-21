@@ -39,4 +39,8 @@ Web app responsif untuk Puskesmas Palaran untuk digitalisasi monitoring kinerja 
 
 ## Next Tasks
 - Tambah laporan Excel/PDF berformat resmi.
-- Grafik analitik pegawai tambahan (top/bottom, per unit).
+
+## Update 2026-06 (fitur lanjutan)
+- **Analitik Pegawai** (`/analitik-pegawai`, admin & kepala): grafik Top 10 & 10 terendah JPL, rata-rata/median, perbandingan antar unit/program (bar ganda) + tabel per-unit. Endpoint `GET /api/analytics/employees`.
+- **Konektor Looker Studio**: endpoint dataset siap-sambung `GET /api/dataset/jpl` & `GET /api/dataset/spm` (JSON default, `?format=csv` untuk `IMPORTDATA`), auth via `?auth=<token>`. Halaman Laporan menampilkan URL JSON/CSV yang bisa disalin.
+- **Pemilih Tanggal**: komponen `DatePicker` (shadcn Popover + Calendar, locale id) menggantikan input tanggal bawaan browser pada form Upload Sertifikat.

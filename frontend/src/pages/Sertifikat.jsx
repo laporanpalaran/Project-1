@@ -3,6 +3,7 @@ import api, { apiErr, fileUrl } from "@/lib/api";
 import { Badge, PageHeader, Empty, Progress } from "@/components/common";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Plus, Upload, FileText, Trash2, ExternalLink, Info } from "lucide-react";
+import { DatePicker } from "@/components/DatePicker";
 import { toast } from "sonner";
 
 const JENIS = ["Teknis", "Fungsional", "Manajerial", "Seminar", "Workshop", "Soft Skill", "Lainnya"];
@@ -121,7 +122,7 @@ export default function Sertifikat() {
             </div>
             <Field label="Penyelenggara"><input data-testid="f-penyelenggara" value={form.penyelenggara} onChange={(e) => setForm({ ...form, penyelenggara: e.target.value })} className={inputCls} /></Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Tanggal Pelatihan"><input data-testid="f-tanggal" type="date" value={form.tanggal_pelatihan} onChange={(e) => setForm({ ...form, tanggal_pelatihan: e.target.value })} className={inputCls} /></Field>
+              <Field label="Tanggal Pelatihan"><DatePicker testid="f-tanggal" value={form.tanggal_pelatihan} onChange={(v) => setForm({ ...form, tanggal_pelatihan: v })} /></Field>
               <Field label="Nomor Sertifikat"><input data-testid="f-nomor" value={form.nomor_sertifikat} onChange={(e) => setForm({ ...form, nomor_sertifikat: e.target.value })} className={inputCls} /></Field>
             </div>
             <Field label="File Sertifikat (PDF/JPG/PNG, maks 2 MB)" required>

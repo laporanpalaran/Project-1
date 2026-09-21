@@ -9,6 +9,7 @@ import Sertifikat from "@/pages/Sertifikat";
 import Verifikasi from "@/pages/Verifikasi";
 import MonitoringPegawai from "@/pages/MonitoringPegawai";
 import MonitoringJPL from "@/pages/MonitoringJPL";
+import AnalitikPegawai from "@/pages/AnalitikPegawai";
 import Program from "@/pages/Program";
 import InputSPM from "@/pages/InputSPM";
 import MonitoringSPM from "@/pages/MonitoringSPM";
@@ -57,6 +58,7 @@ function App() {
             <Route path="/verifikasi" element={<Protected roles={["admin"]}><Verifikasi /></Protected>} />
             <Route path="/monitoring-pegawai" element={<Protected roles={["admin", "kepala"]}><MonitoringPegawai /></Protected>} />
             <Route path="/monitoring-jpl" element={<Protected roles={["admin", "kepala"]}><MonitoringJPL /></Protected>} />
+            <Route path="/analitik-pegawai" element={<Protected roles={["admin", "kepala"]}><AnalitikPegawai /></Protected>} />
             <Route path="/program" element={<Protected roles={["admin", "pj_program"]}><Program /></Protected>} />
             <Route path="/input-spm" element={<Protected roles={["admin", "pj_program"]}><InputSPM /></Protected>} />
             <Route path="/monitoring-spm" element={<Protected roles={["admin", "kepala", "pj_program"]}><MonitoringSPM /></Protected>} />

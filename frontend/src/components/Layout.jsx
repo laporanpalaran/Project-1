@@ -19,6 +19,7 @@ const MENU = [
   { section: "Kinerja Pegawai", roles: ["admin", "kepala"], items: [
     { to: "/monitoring-pegawai", label: "Monitoring Pegawai", icon: Users, roles: ["admin", "kepala"] },
     { to: "/monitoring-jpl", label: "Monitoring JPL", icon: TrendingUp, roles: ["admin", "kepala"] },
+    { to: "/analitik-pegawai", label: "Analitik Pegawai", icon: BarChart3, roles: ["admin", "kepala"] },
     { to: "/verifikasi", label: "Verifikasi Sertifikat", icon: BadgeCheck, roles: ["admin"] },
   ]},
   { section: "Sertifikat Saya", roles: ["pegawai", "pj_program"], items: [

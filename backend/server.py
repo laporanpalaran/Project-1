@@ -868,6 +868,85 @@ async def export_spm(tahun: Optional[int] = None, user: dict = Depends(require_r
 
 
 # ----------------------------------------------------------------------------
+# Analytics pegawai
+# ----------------------------------------------------------------------------
+@api_router.get("/analytics/employees")
+async def analytics_employees(user: dict = Depends(require_roles("admin", "kepala"))):
+    settings = await get_settings()
+    staff = await db.users.find({"role": {"$in": ["pegawai", "pj_program"]}}).to_list(1000)
+    stats = [await employee_stats(s, settings) for s in staff]
+    top = sorted(stats, key=lambda x: x["total_jpl"], reverse=True)[:10]
+    bottom = sorted(stats, key=lambda x: x["total_jpl"])[:10]
+    units = {}
+    for s in stats:
+        units.setdefault(s["unit"] or "Lainnya", []).append(s)
+    per_unit = []
+    for u, arr in units.items():
+        n = len(arr)
+        per_unit.append({
+            "unit": u, "jumlah": n,
+            "rata_jpl": round(sum(a["total_jpl"] for a in arr) / n, 1) if n else 0,
+            "rata_sertifikat": round(sum(a["total_sertifikat"] for a in arr) / n, 1) if n else 0,
+            "memenuhi": sum(1 for a in arr if a["status"] == "MEMENUHI_JPL_DAN_SERTIFIKAT"),
+        })
+    per_unit.sort(key=lambda x: x["rata_jpl"], reverse=True)
+    all_jpl = [s["total_jpl"] for s in stats]
+    all_jpl_sorted = sorted(all_jpl)
+    median = all_jpl_sorted[len(all_jpl_sorted) // 2] if all_jpl_sorted else 0
+    return {
+        "settings": settings, "top": top, "bottom": bottom, "per_unit": per_unit,
+        "rata_jpl": round(sum(all_jpl) / len(all_jpl), 1) if all_jpl else 0,
+        "median_jpl": median,
+        "persen_memenuhi": round(sum(1 for s in stats if s["status"] == "MEMENUHI_JPL_DAN_SERTIFIKAT") / len(stats) * 100) if stats else 0,
+    }
+
+
+# ----------------------------------------------------------------------------
+# Dataset endpoints (siap-sambung Google Sheets / Looker Studio)
+# JSON default (community JSON connector) atau ?format=csv untuk IMPORTDATA
+# Auth via header Bearer atau ?auth=<token>
+# ----------------------------------------------------------------------------
+def _to_csv(rows):
+    if not rows:
+        return ""
+    header = list(rows[0].keys())
+    lines = [",".join(header)] + [",".join(str(r[h]) for h in header) for r in rows]
+    return "\n".join(lines)
+
+
+@api_router.get("/dataset/jpl")
+async def dataset_jpl(format: Optional[str] = Query(None), user: dict = Depends(get_current_user)):
+    settings = await get_settings()
+    staff = await db.users.find({"role": {"$in": ["pegawai", "pj_program"]}}).to_list(1000)
+    rows = []
+    for s in staff:
+        st = await employee_stats(s, settings)
+        rows.append({
+            "nama": st["nama"], "nip": st["nip"], "jabatan": st["jabatan"], "unit": st["unit"],
+            "total_jpl": st["total_jpl"], "total_sertifikat": st["total_sertifikat"],
+            "persen_jpl": st["persen_jpl"], "status": st["status"],
+            "target_jpl": settings["target_jpl"], "target_sertifikat": settings["target_sertifikat"],
+        })
+    if format == "csv":
+        return Response(content=_to_csv(rows), media_type="text/csv")
+    return {"generated_at": now_iso(), "count": len(rows), "data": rows}
+
+
+@api_router.get("/dataset/spm")
+async def dataset_spm(format: Optional[str] = Query(None), tahun: Optional[int] = None, user: dict = Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    reports = await list_reports(tahun=tahun or now.year, user=user)
+    rows = [{
+        "program": r["nama_program"], "indikator": r["nama_indikator"], "bulan": r["bulan"],
+        "tahun": r["tahun"], "numerator": r["numerator"], "denominator": r["denominator"],
+        "capaian": r["capaian"], "target": r["target"], "status": r["status"],
+    } for r in reports]
+    if format == "csv":
+        return Response(content=_to_csv(rows), media_type="text/csv")
+    return {"generated_at": now_iso(), "count": len(rows), "data": rows}
+
+
+# ----------------------------------------------------------------------------
 # Include router + middleware
 # ----------------------------------------------------------------------------
 app.include_router(api_router)
