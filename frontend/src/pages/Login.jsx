@@ -30,8 +30,6 @@ export default function Login() {
     }
   };
 
-  const quick = (id, pw) => { setIdentifier(id); setPassword(pw); };
-
   return (
     <div className="flex min-h-screen">
       {/* Left brand panel */}
@@ -129,23 +127,6 @@ export default function Login() {
                 <LogIn className="h-4 w-4" /> {loading ? "Memproses..." : "Login"}
               </button>
             </form>
-
-            <div className="mt-6 rounded-xl bg-slate-50 p-3">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Akun Demo (klik untuk isi)</p>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                {[
-                  ["admin", "admin123", "Admin"],
-                  ["kepala", "kepala123", "Kepala"],
-                  ["pjkia", "pj123", "PJ Program"],
-                  ["pegawai1", "pegawai123", "Pegawai"],
-                ].map(([u, p, l]) => (
-                  <button key={u} type="button" onClick={() => quick(u, p)} data-testid={`demo-${u}`} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-left transition hover:border-sky-300 hover:bg-sky-50">
-                    <span className="block font-semibold text-slate-700">{l}</span>
-                    <span className="text-slate-400">{u} / {p}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
       </div>
